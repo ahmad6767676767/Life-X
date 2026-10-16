@@ -1,202 +1,477 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>3D Zombie Survival Starter</title>
-  <style>
-    body {
-      margin: 0;
-      overflow: hidden;
-      font-family: Arial, sans-serif;
-      user-select: none;
-    }
-    #canvas-container {
-      width: 100vw;
-      height: 100vh;
-    }
-    /* HUD overlay */
-    #hud {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      color: white;
-      text-shadow: 1px 1px 3px black;
-      font-weight: bold;
-    }
-    .bar-container {
-      width: 200px;
-      height: 15px;
-      background: rgba(0, 0, 0, 0.5);
-      border: 1px solid white;
-      margin-bottom: 5px;
-      border-radius: 3px;
-      overflow: hidden;
-    }
-    .bar {
-      height: 100%;
-      width: 100%;
-      transition: width 0.2s;
-    }
-    #health-bar { background: #e74c3c; }
-    #food-bar { background: #e67e22; }
-    #water-bar { background: #3498db; }
-    
-    #instructions {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      color: white;
-      text-align: center;
-      background: rgba(0,0,0,0.7);
-      padding: 20px;
-      border-radius: 8px;
-      cursor: pointer;
-    }
-  </style>
-  <!-- Load Three.js library -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <!-- Load PointerLockControls for FPS navigation -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Zombie Survival - Full Systems</title>
+    <style>
+        * { box-sizing: border-box; }
+        body, html { 
+            margin: 0; 
+            padding: 0; 
+            width: 100%; 
+            height: 100%; 
+            overflow: hidden; 
+            font-family: 'Courier New', Courier, monospace; 
+            user-select: none; 
+            background-color: #000;
+        }
+        #canvas-container { width: 100%; height: 100%; }
+        
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #ffffff;
+            text-shadow: 1px 1px 3px #000000;
+            z-index: 10;
+        }
+        .stat-label { font-size: 11px; font-weight: bold; margin-bottom: 2px; letter-spacing: 1px; }
+        .bar-container { 
+            width: 180px; 
+            height: 12px; 
+            background: rgba(0, 0, 0, 0.6); 
+            border: 1px solid #ffffff; 
+            margin-bottom: 8px; 
+            padding: 1px;
+        }
+        .bar { height: 100%; width: 100%; transition: width 0.1s linear; }
+        #health-bar { background: #ff3333; }
+        #food-bar { background: #ff9933; }
+        #water-bar { background: #3399ff; }
+
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 8px;
+            height: 8px;
+            border: 1px solid #ffffff;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* MINIMAP RADAR STYLES */
+        #minimap-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 140px;
+            height: 140px;
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            overflow: hidden;
+            background: rgba(0, 0, 0, 0.75);
+            z-index: 10;
+        }
+        #minimap-canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        #ammo-hud {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            color: #ffffff;
+            font-size: 18px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px #000;
+            z-index: 10;
+            text-align: right;
+        }
+        
+        #interaction-prompt {
+            position: absolute;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #ffff00;
+            font-size: 16px;
+            font-weight: bold;
+            text-shadow: 1px 1px 3px #000;
+            display: none;
+            z-index: 10;
+        }
+
+        #instructions {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ffffff;
+            font-size: 18px;
+            background: rgba(0,0,0,0.85);
+            padding: 20px;
+            border: 1px solid #fff;
+            text-align: center;
+            z-index: 20;
+            cursor: pointer;
+            line-height: 1.6;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
 </head>
 <body>
 
-  <div id="canvas-container"></div>
+    <div id="instructions">
+        CLICK TO PLAY<br><br>
+        WASD = Move / Drive<br>
+        Mouse = Look | Left Click = Fire<br>
+        E = Loot Chest / Enter Car<br>
+        F = Craft Ammo (Needs 2 Scrap)<br>
+        R = Reload
+    </div>
+    
+    <div id="canvas-container"></div>
+    <div id="crosshair"></div>
 
-  <!-- Heads Up Display (HUD) -->
-  <div id="hud">
-    <div>HEALTH</div>
-    <div class="bar-container"><div id="health-bar" class="bar"></div></div>
-    <div>FOOD</div>
-    <div class="bar-container"><div id="food-bar" class="bar"></div></div>
-    <div>WATER</div>
-    <div class="bar-container"><div id="water-bar" class="bar"></div></div>
-  </div>
+    <div id="hud">
+        <div class="stat-label">HEALTH</div>
+        <div class="bar-container"><div id="health-bar" class="bar"></div></div>
+        <div class="stat-label">FOOD</div>
+        <div class="bar-container"><div id="food-bar" class="bar"></div></div>
+        <div class="stat-label">WATER</div>
+        <div class="bar-container"><div id="water-bar" class="bar"></div></div>
+        <div class="stat-label" style="margin-top: 5px;">SCRAP: <span id="scrap-count">0</span></div>
+    </div>
 
-  <div id="instructions">
-    <h1>CLICK TO PLAY</h1>
-    <p>Move: WASD<br>Look: Mouse</p>
-  </div>
+    <!-- MINIMAP RADAR CONTAINER -->
+    <div id="minimap-container">
+        <canvas id="minimap-canvas" width="140" height="140"></canvas>
+    </div>
 
-  <script>
-    // 1. Scene Setup
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x111122); // Foggy night sky
-    scene.fog = new THREE.FogExp2(0x111122, 0.03);
+    <div id="interaction-prompt">PRESS [E] TO INTERACT</div>
 
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    document.getElementById('canvas-container').appendChild(renderer.domElement);
+    <div id="ammo-hud">
+        AMMO: <span id="ammo-clip">30</span> / <span id="ammo-reserve">90</span>
+    </div>
 
-    // 2. Lighting
-    const ambientLight = new THREE.AmbientLight(0x333355, 0.5);
-    scene.add(ambientLight);
+    <script>
+        // --- 1. SETUP THREE.JS SCENE ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0a0d);
+        scene.fog = new THREE.FogExp2(0x0a0a0d, 0.025);
 
-    const dirLight = new THREE.DirectionalLight(0x9999bb, 0.8);
-    dirLight.position.set(50, 100, 50);
-    scene.add(dirLight);
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        container.appendChild(renderer.domElement);
 
-    // 3. Ground / World Generation
-    const groundGeometry = new THREE.PlaneGeometry(200, 200);
-    const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x223322 });
-    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-    ground.rotation.x = -Math.PI / 2;
-    scene.add(ground);
+        const ambientLight = new THREE.AmbientLight(0x333344, 1.2);
+        scene.add(ambientLight);
 
-    // Simple building generator
-    function createBuilding(x, z) {
-      const geometry = new THREE.BoxGeometry(10, 8, 10);
-      const material = new THREE.MeshStandardMaterial({ color: 0x555555 });
-      const building = new THREE.Mesh(geometry, material);
-      building.position.set(x, 4, z);
-      scene.add(building);
-    }
+        const dirLight = new THREE.DirectionalLight(0x8888aa, 0.8);
+        dirLight.position.set(40, 60, 20);
+        scene.add(dirLight);
 
-    createBuilding(-20, -20);
-    createBuilding(20, -30);
-    createBuilding(-10, 30);
+        const groundGeo = new THREE.PlaneGeometry(400, 400);
+        const groundMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1d, roughness: 0.9 });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        scene.add(ground);
 
-    // 4. Controls & Movement
-    const controls = new THREE.PointerLockControls(camera, document.body);
-    const instructions = document.getElementById('instructions');
+        // Rescue Hotspot Zone (Red Area)
+        const rescuePos = new THREE.Vector3(100, 0, -100);
+        const rescueGeo = new THREE.CylinderGeometry(15, 15, 0.2, 32);
+        const rescueMat = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.35 });
+        const rescueZone = new THREE.Mesh(rescueGeo, rescueMat);
+        rescueZone.position.copy(rescuePos);
+        scene.add(rescueZone);
 
-    instructions.addEventListener('click', () => {
-      controls.lock();
-    });
+        // --- 2. PLAYER & CONTROLS SETUP ---
+        const controls = new THREE.PointerLockControls(camera, document.body);
+        const instructions = document.getElementById('instructions');
 
-    controls.addEventListener('lock', () => {
-      instructions.style.display = 'none';
-    });
+        instructions.addEventListener('click', () => { controls.lock(); });
+        controls.addEventListener('lock', () => { instructions.style.display = 'none'; });
+        controls.addEventListener('unlock', () => { instructions.style.display = 'block'; });
 
-    controls.addEventListener('unlock', () => {
-      instructions.style.display = 'block';
-    });
+        scene.add(controls.getObject());
+        camera.position.set(0, 1.6, 0);
 
-    scene.add(controls.getObject());
-    controls.getObject().position.set(0, 2, 0);
+        const playerStats = { health: 100, food: 100, water: 100, scrap: 0 };
+        let ammoClip = 30, ammoReserve = 90;
 
-    let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
-    const velocity = new THREE.Vector3();
-    const direction = new THREE.Vector3();
+        const moveState = { forward: false, backward: false, left: false, right: false };
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'KeyW') moveState.forward = true;
+            if (e.code === 'KeyS') moveState.backward = true;
+            if (e.code === 'KeyA') moveState.left = true;
+            if (e.code === 'KeyD') moveState.right = true;
+            if (e.code === 'KeyE') handleInteraction();
+            if (e.code === 'KeyF') craftAmmo();
+            if (e.code === 'KeyR') reloadWeapon();
+        });
+        document.addEventListener('keyup', (e) => {
+            if (e.code === 'KeyW') moveState.forward = false;
+            if (e.code === 'KeyS') moveState.backward = false;
+            if (e.code === 'KeyA') moveState.left = false;
+            if (e.code === 'KeyD') moveState.right = false;
+        });
 
-    const onKeyDown = (event) => {
-      switch (event.code) {
-        case 'KeyW': moveForward = true; break;
-        case 'KeyA': moveLeft = true; break;
-        case 'KeyS': moveBackward = true; break;
-        case 'KeyD': moveRight = true; break;
-      }
-    };
+        // --- 3. 3D GUN & SHOOTING MECHANICS ---
+        const gunGroup = new THREE.Group();
+        const barrelGeo = new THREE.BoxGeometry(0.1, 0.1, 0.6);
+        const gunMat = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.8 });
+        gunGroup.add(new THREE.Mesh(barrelGeo, gunMat));
+        gunGroup.position.set(0.2, -0.2, -0.4);
+        camera.add(gunGroup);
 
-    const onKeyUp = (event) => {
-      switch (event.code) {
-        case 'KeyW': moveForward = false; break;
-        case 'KeyA': moveLeft = false; break;
-        case 'KeyS': moveBackward = false; break;
-        case 'KeyD': moveRight = false; break;
-      }
-    };
+        const raycaster = new THREE.Raycaster();
+        const zombies = [];
 
-    document.addEventListener('keydown', onKeyDown);
-    document.addEventListener('keyup', onKeyUp);
+        function reloadWeapon() {
+            if (ammoReserve <= 0 || ammoClip === 30) return;
+            const needed = 30 - ammoClip;
+            const amount = Math.min(needed, ammoReserve);
+            ammoClip += amount;
+            ammoReserve -= amount;
+            updateHUD();
+        }
 
-    // 5. Game Loop
-    let prevTime = performance.now();
-    function animate() {
-      requestAnimationFrame(animate);
+        document.addEventListener('mousedown', (e) => {
+            if (e.button === 0 && controls.isLocked && !isDriving && ammoClip > 0) {
+                ammoClip--;
+                updateHUD();
 
-      const time = performance.now();
-      if (controls.isLocked) {
-        const delta = (time - prevTime) / 1000;
+                // Recoil
+                gunGroup.position.z += 0.04;
+                setTimeout(() => { gunGroup.position.z = -0.4; }, 50);
 
-        velocity.x -= velocity.x * 10.0 * delta;
-        velocity.z -= velocity.z * 10.0 * delta;
+                raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+                const hits = raycaster.intersectObjects(zombies);
+                if (hits.length > 0) {
+                    const z = hits[0].object;
+                    z.health -= 40;
+                    if (z.health <= 0) {
+                        scene.remove(z);
+                        zombies.splice(zombies.indexOf(z), 1);
+                    }
+                }
+            }
+        });
 
-        direction.z = Number(moveForward) - Number(moveBackward);
-        direction.x = Number(moveRight) - Number(moveLeft);
-        direction.normalize();
+        // --- 4. CHESTS & LOOTING SYSTEM ---
+        const chests = [];
+        const chestGeo = new THREE.BoxGeometry(1.2, 0.8, 0.8);
+        const chestMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b });
 
-        if (moveForward || moveBackward) velocity.z -= direction.z * 50.0 * delta;
-        if (moveLeft || moveRight) velocity.x -= direction.x * 50.0 * delta;
+        function createChest(x, z) {
+            const chest = new THREE.Mesh(chestGeo, chestMat);
+            chest.position.set(x, 0.4, z);
+            chest.looted = false;
+            scene.add(chest);
+            chests.push(chest);
+        }
 
-        controls.moveRight(-velocity.x * delta);
-        controls.moveForward(-velocity.z * delta);
-      }
+        // Generate Buildings & Place Chests Inside Some Buildings
+        for (let i = 0; i < 15; i++) {
+            const b = new THREE.Mesh(
+                new THREE.BoxGeometry(14, 16, 14),
+                new THREE.MeshStandardMaterial({ color: 0x333338 })
+            );
+            let x = (Math.random() - 0.5) * 320;
+            let z = (Math.random() - 0.5) * 320;
+            if (Math.abs(x) < 30 && Math.abs(z) < 30) continue;
+            b.position.set(x, 8, z);
+            scene.add(b);
 
-      prevTime = time;
-      renderer.render(scene, camera);
-    }
+            // 50% chance building has a loot chest near it
+            if (Math.random() > 0.5) {
+                createChest(x + 8, z);
+            }
+        }
 
-    animate();
+        function craftAmmo() {
+            if (playerStats.scrap >= 2) {
+                playerStats.scrap -= 2;
+                ammoReserve += 30;
+                updateHUD();
+            }
+        }
 
-    // Window Resize Handling
-    window.addEventListener('resize', () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    });
-  </script>
+        // --- 5. DRIVEABLE VEHICLE SYSTEM ---
+        const carGroup = new THREE.Group();
+        const carBody = new THREE.Mesh(
+            new THREE.BoxGeometry(2.5, 1.2, 4.5),
+            new THREE.MeshStandardMaterial({ color: 0x2e7d32 })
+        );
+        carBody.position.y = 0.8;
+        carGroup.add(carBody);
+        carGroup.position.set(10, 0, 10);
+        scene.add(carGroup);
+
+        let isDriving = false;
+        let carSpeed = 0;
+
+        function handleInteraction() {
+            const pPos = camera.position;
+            const promptEl = document.getElementById('interaction-prompt');
+
+            // Handle Vehicle Mount / Unmount
+            if (isDriving) {
+                isDriving = false;
+                camera.position.set(carGroup.position.x + 2, 1.6, carGroup.position.z);
+                gunGroup.visible = true;
+                return;
+            }
+
+            if (pPos.distanceTo(carGroup.position) < 4) {
+                isDriving = true;
+                gunGroup.visible = false;
+                promptEl.style.display = 'none';
+                return;
+            }
+
+            // Handle Chest Looting
+            for (let chest of chests) {
+                if (!chest.looted && pPos.distanceTo(chest.position) < 3.5) {
+                    chest.looted = true;
+                    chest.material.color.setHex(0x4a321a); // Darken when opened
+                    
+                    // Add random loot
+                    ammoReserve += 30;
+                    playerStats.food = Math.min(100, playerStats.food + 25);
+                    playerStats.water = Math.min(100, playerStats.water + 30);
+                    playerStats.scrap += 1;
+                    
+                    updateHUD();
+                    break;
+                }
+            }
+        }
+
+        // --- 6. MINIMAP RADAR SYSTEM ---
+        const mapCanvas = document.getElementById('minimap-canvas');
+        const mapCtx = mapCanvas.getContext('2d');
+
+        function updateMinimap() {
+            mapCtx.clearRect(0, 0, 140, 140);
+            const center = 70;
+            const scale = 0.35;
+
+            const pX = camera.position.x;
+            const pZ = camera.position.z;
+
+            // Draw Red Rescue Zone on Radar
+            const rRelX = center + (rescuePos.x - pX) * scale;
+            const rRelY = center + (rescuePos.z - pZ) * scale;
+            mapCtx.fillStyle = 'rgba(255, 0, 0, 0.6)';
+            mapCtx.beginPath();
+            mapCtx.arc(rRelX, rRelY, 8, 0, Math.PI * 2);
+            mapCtx.fill();
+
+            // Draw Zombies on Radar
+            mapCtx.fillStyle = '#ff3333';
+            for (let z of zombies) {
+                const zRelX = center + (z.position.x - pX) * scale;
+                const zRelY = center + (z.position.z - pZ) * scale;
+                if (Math.hypot(zRelX - center, zRelY - center) < 65) {
+                    mapCtx.fillRect(zRelX - 1, zRelY - 1, 3, 3);
+                }
+            }
+
+            // Draw Player Marker in Center
+            mapCtx.fillStyle = '#00ff00';
+            mapCtx.beginPath();
+            mapCtx.arc(center, center, 3, 0, Math.PI * 2);
+            mapCtx.fill();
+        }
+
+        // --- 7. ZOMBIE SPAWNING ---
+        const zombieGeo = new THREE.BoxGeometry(0.8, 1.8, 0.8);
+        for (let i = 0; i < 40; i++) {
+            const zMesh = new THREE.Mesh(zombieGeo, new THREE.MeshLambertMaterial({ color: 0x2e4225 }));
+            let x = (Math.random() - 0.5) * 240;
+            let z = (Math.random() - 0.5) * 240;
+            if (Math.abs(x) < 15) x += 30;
+            zMesh.position.set(x, 0.9, z);
+            zMesh.health = 100;
+            scene.add(zMesh);
+            zombies.push(zMesh);
+        }
+
+        function updateHUD() {
+            document.getElementById('health-bar').style.width = Math.max(0, playerStats.health) + '%';
+            document.getElementById('food-bar').style.width = Math.max(0, playerStats.food) + '%';
+            document.getElementById('water-bar').style.width = Math.max(0, playerStats.water) + '%';
+            document.getElementById('scrap-count').textContent = playerStats.scrap;
+            document.getElementById('ammo-clip').textContent = ammoClip;
+            document.getElementById('ammo-reserve').textContent = ammoReserve;
+        }
+
+        // --- 8. ANIMATION LOOP ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const promptEl = document.getElementById('interaction-prompt');
+            let NearInteractable = false;
+
+            if (controls.isLocked) {
+                if (isDriving) {
+                    // Vehicle Driving Physics
+                    if (moveState.forward) carSpeed = Math.min(carSpeed + 0.01, 0.4);
+                    else if (moveState.backward) carSpeed = Math.max(carSpeed - 0.005, -0.15);
+                    else carSpeed *= 0.95;
+
+                    if (moveState.left) carGroup.rotation.y += 0.03;
+                    if (moveState.right) carGroup.rotation.y -= 0.03;
+
+                    carGroup.translateZ(-carSpeed);
+                    camera.position.set(carGroup.position.x, carGroup.position.y + 1.2, carGroup.position.z);
+                } else {
+                    // Player Walking Movement
+                    if (moveState.forward) controls.moveForward(0.12);
+                    if (moveState.backward) controls.moveForward(-0.12);
+                    if (moveState.left) controls.moveRight(-0.12);
+                    if (moveState.right) controls.moveRight(0.12);
+
+                    // Check distance for interaction prompt
+                    const pPos = camera.position;
+                    if (pPos.distanceTo(carGroup.position) < 4) {
+                        promptEl.textContent = 'PRESS [E] TO ENTER CAR';
+                        NearInteractable = true;
+                    } else {
+                        for (let chest of chests) {
+                            if (!chest.looted && pPos.distanceTo(chest.position) < 3.5) {
+                                promptEl.textContent = 'PRESS [E] TO LOOT CHEST';
+                                NearInteractable = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            promptEl.style.display = NearInteractable ? 'block' : 'none';
+
+            // Zombie Chase
+            const targetPos = isDriving ? carGroup.position : camera.position;
+            for (let z of zombies) {
+                if (z.position.distanceTo(targetPos) < 45) {
+                    z.lookAt(targetPos.x, z.position.y, targetPos.z);
+                    z.translateZ(0.025);
+                }
+            }
+
+            updateMinimap();
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
 </body>
 </html>
